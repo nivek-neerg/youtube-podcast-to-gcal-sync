@@ -2,7 +2,7 @@
 
 Automatically schedules new YouTube podcast episodes into your Google Calendar — fitted around your existing events, within the hours and days that work for you.
 
-Built as my first ever GitHub project. No coding background. Just a problem I wanted to solve.
+Built as a POC GitHub project. No coding background. Just a problem I wanted to solve.
 
 ---
 
@@ -83,6 +83,6 @@ A single-page web app that:
 
 ## Why I Built This
 
-This is my first ever GitHub contribution. I'm not a developer — I used AI to help me build something that solves a real problem I had. The goal was to prove that with the right tools, anyone can build and ship something useful.
+This is my first ever GitHub contribution. I'm not a developer — I used AI to help me build something that solves a real problem I had. The goal was to test the idea via a simple POC. 
 
 If this is useful to you, feel free to use it, fork it, or improve it.
