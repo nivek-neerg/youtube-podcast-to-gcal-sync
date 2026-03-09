@@ -1,0 +1,2307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CF PodSync — CreateFuture</title>
+
+  <!-- Fonts: Playfair Display (display/brand) + Inter (UI body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    /* =========================================================
+       DESIGN TOKENS
+    ========================================================= */
+    :root {
+      --navy:          #0A0019;
+      --navy-card:     #100028;
+      --navy-elevated: #1C0A40;
+      --white:         #FFFFFF;
+      --mint:          #6EE7B7;
+      --indigo:        #818CF8;
+      --mint-dim:      rgba(110, 231, 183, 0.12);
+      --mint-glow:     rgba(110, 231, 183, 0.06);
+      --indigo-dim:    rgba(129, 140, 248, 0.12);
+      --red:           #F87171;
+      --amber:         #FBBF24;
+      --text-1:        #FFFFFF;
+      --text-2:        rgba(255,255,255,0.60);
+      --text-3:        rgba(255,255,255,0.30);
+      --border:        rgba(255,255,255,0.07);
+      --border-hover:  rgba(255,255,255,0.14);
+      --shadow:        0 12px 40px rgba(0,0,0,0.5);
+      --r:             12px;
+      --r-sm:          8px;
+      --font-ui:       'Inter', system-ui, sans-serif;
+      --font-display:  'Playfair Display', Georgia, serif;
+    }
+
+    /* =========================================================
+       RESET
+    ========================================================= */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background: var(--navy);
+      color: var(--text-1);
+      font-family: var(--font-ui);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    button { font-family: var(--font-ui); cursor: pointer; }
+    input, select { font-family: var(--font-ui); }
+    a { color: inherit; text-decoration: none; }
+
+    /* =========================================================
+       SIGN-IN SCREEN
+    ========================================================= */
+    #signin-screen {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--navy);
+      overflow: hidden;
+      z-index: 200;
+      transition: opacity 0.4s ease;
+    }
+    #signin-screen.hidden { opacity: 0; pointer-events: none; }
+
+    /* Diagonal slash background motif */
+    .signin-backdrop {
+      position: absolute; inset: 0; pointer-events: none;
+    }
+    .signin-backdrop::before {
+      content: '';
+      position: absolute;
+      top: -30%; right: -5%;
+      width: 55%; height: 160%;
+      background: linear-gradient(
+        155deg,
+        transparent 48%,
+        rgba(110,231,183,0.035) 48%,
+        rgba(110,231,183,0.035) 54%,
+        transparent 54%
+      );
+    }
+    .signin-backdrop::after {
+      content: '';
+      position: absolute;
+      bottom: -20%; left: 5%;
+      width: 40%; height: 130%;
+      background: linear-gradient(
+        155deg,
+        transparent 46%,
+        rgba(129,140,248,0.035) 46%,
+        rgba(129,140,248,0.035) 52%,
+        transparent 52%
+      );
+    }
+
+    .signin-card {
+      position: relative;
+      width: 100%; max-width: 420px;
+      padding: 52px 44px;
+      background: var(--navy-card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow), 0 0 100px rgba(110,231,183,0.04);
+      text-align: center;
+    }
+
+    /* CF Monogram + PodSync lockup */
+    .signin-lockup {
+      display: flex; align-items: center; justify-content: center; gap: 16px;
+      margin-bottom: 10px;
+    }
+    .signin-monogram svg { height: 30px; width: auto; }
+    .signin-slash-divider {
+      width: 1.5px; height: 28px;
+      background: var(--border-hover);
+      transform: skewX(-15deg);
+      flex-shrink: 0;
+    }
+    .signin-product-name {
+      font-family: var(--font-display);
+      font-size: 24px; font-weight: 600;
+      letter-spacing: -0.3px;
+      color: var(--white);
+    }
+    .signin-product-name em {
+      font-style: normal;
+      color: var(--mint);
+    }
+    .signin-made-by {
+      font-size: 11px; color: var(--text-3);
+      margin-bottom: 32px;
+      letter-spacing: 0.04em;
+    }
+    .signin-tagline {
+      font-size: 15px; line-height: 1.65;
+      color: var(--text-2);
+      margin-bottom: 40px;
+      max-width: 310px; margin-left: auto; margin-right: auto;
+    }
+
+    .btn-google {
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+      width: 100%; padding: 14px 20px;
+      background: #fff;
+      color: #1a1a1a;
+      font-size: 14px; font-weight: 500;
+      border: none; border-radius: var(--r-sm);
+      transition: all 0.2s;
+    }
+    .btn-google:hover { background: #f3f3f3; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+    .btn-google:active { transform: translateY(0); }
+    .google-icon {
+      width: 18px; height: 18px; flex-shrink: 0;
+    }
+
+    .signin-demo-link {
+      display: block;
+      margin-top: 14px;
+      font-size: 12px; color: var(--text-3);
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    .signin-demo-link:hover { color: var(--text-2); }
+    .signin-demo-link span { color: var(--indigo); }
+
+    /* How it works steps */
+    .signin-steps {
+      display: flex; align-items: flex-start; gap: 8px;
+      margin: 20px 0 24px;
+      padding: 18px 16px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+    }
+    .signin-step {
+      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;
+      text-align: center;
+    }
+    .signin-step-icon {
+      font-size: 22px; line-height: 1;
+      width: 44px; height: 44px;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,0.05);
+      border-radius: 50%;
+    }
+    .signin-step-text {
+      font-size: 11px; color: var(--text-2); line-height: 1.5;
+    }
+    .signin-step-text strong {
+      display: block; color: var(--text-1); font-weight: 500;
+      font-size: 11px; margin-bottom: 3px;
+    }
+    .signin-step-arrow {
+      color: var(--text-3); font-size: 16px; padding-top: 12px;
+      flex-shrink: 0;
+    }
+
+    .signin-restriction {
+      margin-top: 28px; padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 11px; color: var(--text-3);
+      line-height: 1.6;
+    }
+    .signin-restriction strong { color: var(--mint); font-weight: 500; }
+
+    /* =========================================================
+       MAIN APP
+    ========================================================= */
+    #main-app {
+      display: none; flex-direction: column; min-height: 100vh;
+    }
+    #main-app.visible { display: flex; }
+
+    /* --- HEADER --- */
+    .app-header {
+      position: sticky; top: 0; z-index: 50;
+      height: 60px;
+      background: rgba(10,0,25,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .header-left { display: flex; align-items: center; gap: 14px; }
+    .header-monogram svg { height: 22px; width: auto; display: block; }
+    .header-divider {
+      width: 1.5px; height: 18px;
+      background: var(--border-hover);
+      transform: skewX(-14deg);
+    }
+    .header-title {
+      font-family: var(--font-display);
+      font-size: 16px; font-weight: 600; letter-spacing: -0.2px;
+      color: var(--white);
+    }
+    .header-title em { font-style: normal; color: var(--mint); }
+
+    .header-right { display: flex; align-items: center; gap: 14px; }
+
+    .sync-pill {
+      display: flex; align-items: center; gap: 7px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      background: var(--border);
+      font-size: 11px; color: var(--text-2);
+      border: 1px solid transparent;
+    }
+    .sync-pill.active {
+      background: var(--mint-dim);
+      border-color: rgba(110,231,183,0.2);
+      color: var(--mint);
+    }
+    .sync-pill.paused {
+      background: rgba(251,191,36,0.1);
+      border-color: rgba(251,191,36,0.2);
+      color: var(--amber);
+    }
+    .sync-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: currentColor;
+    }
+    .sync-pill.active .sync-dot { animation: blink 2s infinite; }
+    @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+    .user-chip {
+      display: flex; align-items: center; gap: 8px;
+      padding: 4px 12px 4px 4px;
+      border-radius: 20px;
+      background: var(--border);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+    .user-chip:hover { border-color: var(--border-hover); }
+    .user-avatar-circle {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--indigo-dim);
+      border: 1px solid var(--indigo);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 600; color: var(--indigo);
+      flex-shrink: 0;
+    }
+    .user-name-label { font-size: 12px; color: var(--text-2); }
+
+    .user-dropdown {
+      position: absolute; top: calc(100% + 8px); right: 0;
+      background: var(--navy-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      min-width: 160px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: none;
+      z-index: 100;
+    }
+    .user-chip.open .user-dropdown { display: block; }
+    .dropdown-item {
+      padding: 10px 16px;
+      font-size: 13px; color: var(--text-2);
+      cursor: pointer; transition: all 0.15s;
+      display: block; width: 100%; text-align: left;
+      background: none; border: none;
+    }
+    .dropdown-item:hover { background: var(--border); color: var(--text-1); }
+    .dropdown-item.danger { color: var(--red); }
+    .dropdown-item.danger:hover { background: rgba(248,113,113,0.08); }
+
+    /* --- NAV TABS --- */
+    .app-nav {
+      background: var(--navy);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      display: flex; gap: 4px;
+    }
+    .nav-tab {
+      padding: 14px 18px;
+      font-size: 13px; font-weight: 500;
+      color: var(--text-2);
+      background: none; border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .nav-tab:hover { color: var(--text-1); }
+    .nav-tab.active { color: var(--mint); border-bottom-color: var(--mint); }
+    .nav-tab .tab-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      margin-left: 6px;
+      min-width: 18px; height: 18px;
+      padding: 0 5px;
+      border-radius: 9px;
+      background: var(--mint-dim);
+      color: var(--mint);
+      font-size: 10px; font-weight: 600;
+    }
+
+    /* --- CONTENT AREA --- */
+    .app-content {
+      flex: 1;
+      padding: 36px 28px;
+      max-width: 1080px; width: 100%; margin: 0 auto;
+    }
+
+    /* --- SECTION HEADING --- */
+    .section-head {
+      margin-bottom: 24px;
+    }
+    .section-title {
+      font-family: var(--font-display);
+      font-size: 20px; font-weight: 600;
+      margin-bottom: 5px;
+    }
+    .section-sub {
+      font-size: 13px; color: var(--text-2);
+    }
+
+    /* =========================================================
+       SETUP PROGRESS BAR (shown during onboarding)
+    ========================================================= */
+    .setup-progress {
+      background: var(--navy-card);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 20px 24px;
+      margin-bottom: 28px;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .setup-steps { display: flex; align-items: center; gap: 6px; }
+    .setup-step {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 12px; color: var(--text-3);
+    }
+    .setup-step.done { color: var(--mint); }
+    .setup-step.current { color: var(--text-1); }
+    .step-num {
+      width: 20px; height: 20px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 600;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+    .setup-step.done .step-num { background: var(--mint); color: var(--navy); }
+    .setup-step.current .step-num {
+      background: var(--mint-dim); color: var(--mint);
+      border: 1px solid rgba(110,231,183,0.4);
+    }
+    .step-connector {
+      width: 20px; height: 1px;
+      background: var(--border);
+    }
+    .setup-step.done + .step-connector { background: var(--mint); opacity: 0.3; }
+    .setup-hint { font-size: 12px; color: var(--text-3); white-space: nowrap; }
+
+    /* =========================================================
+       PODCASTS TAB
+    ========================================================= */
+    .channels-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+
+    .channel-card {
+      background: var(--navy-card);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 18px;
+      position: relative; overflow: hidden;
+      transition: border-color 0.2s, transform 0.2s;
+      --accent: var(--border);
+    }
+    .channel-card::after {
+      content: '';
+      position: absolute; top: 0; left: 0; bottom: 0;
+      width: 3px;
+      background: var(--accent);
+      transition: box-shadow 0.3s;
+    }
+    .channel-card.on { border-color: rgba(255,255,255,0.10); }
+    .channel-card.on::after { box-shadow: 0 0 14px var(--accent); }
+    .channel-card:hover { transform: translateY(-1px); border-color: var(--border-hover); }
+
+    .channel-top { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
+    .channel-avatar {
+      width: 42px; height: 42px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-display);
+      font-size: 17px; font-weight: 700;
+      flex-shrink: 0;
+    }
+    .channel-meta { flex: 1; min-width: 0; }
+    .channel-name {
+      font-size: 14px; font-weight: 600;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      margin-bottom: 2px;
+    }
+    .channel-host {
+      font-size: 11px; color: var(--text-3);
+    }
+    .channel-desc {
+      font-size: 12px; color: var(--text-2); line-height: 1.55;
+      display: -webkit-box; -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical; overflow: hidden;
+      margin-bottom: 14px;
+    }
+    .channel-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+    .channel-subs { font-size: 11px; color: var(--text-3); }
+    .channel-handle { font-size: 11px; color: var(--text-3); }
+    .channel-delete {
+      position: absolute; top: 8px; right: 8px;
+      background: none; border: none; cursor: pointer;
+      color: var(--text-3); font-size: 14px; line-height: 1;
+      padding: 4px 6px; border-radius: 6px;
+      opacity: 0; transition: opacity 0.15s, color 0.15s;
+    }
+    .channel-card { position: relative; }
+    .channel-card:hover .channel-delete { opacity: 1; }
+    .channel-delete:hover { color: var(--red); }
+
+    /* Toggle */
+    .toggle { position: relative; width: 42px; height: 23px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .toggle-track {
+      position: absolute; inset: 0;
+      background: var(--border);
+      border-radius: 12px; cursor: pointer;
+      transition: all 0.25s;
+    }
+    .toggle-track::before {
+      content: ''; position: absolute;
+      top: 3px; left: 3px;
+      width: 17px; height: 17px;
+      border-radius: 50%;
+      background: var(--text-3);
+      transition: all 0.25s;
+    }
+    .toggle input:checked + .toggle-track {
+      background: var(--mint-dim);
+      border: 1px solid rgba(110,231,183,0.4);
+    }
+    .toggle input:checked + .toggle-track::before {
+      background: var(--mint);
+      transform: translateX(19px);
+    }
+
+    /* Add channel card */
+    .add-channel-btn {
+      background: transparent;
+      border: 1px dashed var(--border);
+      border-radius: var(--r);
+      padding: 18px;
+      display: flex; align-items: center; justify-content: center;
+      gap: 8px; color: var(--text-3);
+      font-size: 13px;
+      transition: all 0.2s; cursor: pointer;
+      min-height: 130px;
+    }
+    .add-channel-btn:hover {
+      border-color: var(--border-hover);
+      color: var(--text-2);
+      background: var(--navy-card);
+    }
+    .add-icon {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; color: var(--text-2); flex-shrink: 0;
+    }
+
+    /* Podcasts tab action bar */
+    .tab-actions {
+      display: flex; justify-content: flex-end; gap: 10px;
+      margin-top: 4px;
+    }
+
+    /* =========================================================
+       SCHEDULE TAB
+    ========================================================= */
+    .schedule-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+    @media (max-width: 680px) { .schedule-grid { grid-template-columns: 1fr; } }
+
+    .sched-card {
+      background: var(--navy-card);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 22px;
+    }
+    .sched-card-title {
+      font-size: 11px; font-weight: 600;
+      color: var(--text-3);
+      text-transform: uppercase; letter-spacing: 0.1em;
+      margin-bottom: 16px;
+    }
+
+    /* Day pills */
+    .day-pills { display: flex; flex-wrap: wrap; gap: 7px; }
+    .day-pill { position: relative; }
+    .day-pill input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .day-pill label {
+      display: flex; align-items: center; justify-content: center;
+      width: 42px; height: 34px;
+      border-radius: var(--r-sm);
+      background: var(--border);
+      color: var(--text-2); font-size: 12px; font-weight: 500;
+      cursor: pointer; transition: all 0.2s;
+      border: 1px solid transparent;
+    }
+    .day-pill label:hover { border-color: var(--border-hover); color: var(--text-1); }
+    .day-pill input:checked + label {
+      background: var(--mint-dim);
+      border-color: rgba(110,231,183,0.35);
+      color: var(--mint);
+    }
+
+    /* Time window */
+    .time-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .time-lbl { font-size: 12px; color: var(--text-3); width: 32px; }
+    .time-input {
+      flex: 1;
+      background: var(--navy-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      color: var(--text-1); font-size: 14px;
+      padding: 9px 12px; outline: none;
+      transition: all 0.2s; color-scheme: dark;
+    }
+    .time-input:focus { border-color: var(--mint); box-shadow: 0 0 0 3px var(--mint-dim); }
+
+    /* Duration selector */
+    .duration-grid { display: flex; gap: 8px; flex-wrap: wrap; }
+    .dur-opt { position: relative; }
+    .dur-opt input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .dur-opt label {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 12px 14px; min-width: 68px;
+      border-radius: 10px;
+      background: var(--border); border: 1px solid transparent;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .dur-opt label:hover { border-color: var(--border-hover); }
+    .dur-num {
+      font-size: 22px; font-weight: 700; font-family: var(--font-display);
+      color: var(--text-1); line-height: 1;
+    }
+    .dur-unit {
+      font-size: 10px; color: var(--text-3); margin-top: 3px;
+    }
+    .dur-opt input:checked + label {
+      background: var(--indigo-dim);
+      border-color: rgba(129,140,248,0.35);
+    }
+    .dur-opt input:checked + label .dur-num { color: var(--indigo); }
+
+    /* Schedule helper text */
+    .schedule-preview {
+      background: var(--navy-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      font-size: 13px; color: var(--text-2);
+      line-height: 1.6;
+    }
+    .schedule-preview strong { color: var(--text-1); font-weight: 500; }
+    .schedule-preview .preview-accent { color: var(--mint); font-weight: 500; }
+
+    /* =========================================================
+       STATUS TAB
+    ========================================================= */
+    .status-hero {
+      background: var(--navy-card);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 28px;
+      margin-bottom: 20px;
+      display: flex; align-items: flex-start;
+      justify-content: space-between; gap: 24px;
+      position: relative; overflow: hidden;
+    }
+    /* Diagonal slash accent */
+    .status-hero::before {
+      content: '';
+      position: absolute; top: 0; right: 0; bottom: 0;
+      width: 180px;
+      background: linear-gradient(150deg, transparent 38%, var(--mint-glow) 38%);
+      pointer-events: none;
+    }
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 5px 12px; border-radius: 20px;
+      font-size: 11px; font-weight: 600;
+      margin-bottom: 12px;
+    }
+    .status-badge.active { background: var(--mint-dim); color: var(--mint); border: 1px solid rgba(110,231,183,0.25); }
+    .status-badge.paused { background: rgba(251,191,36,0.1); color: var(--amber); border: 1px solid rgba(251,191,36,0.2); }
+    .status-badge.inactive { background: var(--border); color: var(--text-3); }
+    .status-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .status-badge.active .status-badge-dot { animation: blink 2s infinite; }
+
+    .status-headline {
+      font-family: var(--font-display);
+      font-size: 22px; font-weight: 600; margin-bottom: 6px;
+    }
+    .status-subline { font-size: 13px; color: var(--text-2); }
+
+    .progress-wrap { margin-top: 14px; }
+    .progress-label {
+      display: flex; justify-content: space-between;
+      font-size: 11px; color: var(--text-3); margin-bottom: 6px;
+    }
+    .progress-track {
+      height: 4px; background: var(--border);
+      border-radius: 2px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--mint), var(--indigo));
+      border-radius: 2px; transition: width 0.6s ease;
+    }
+
+    .status-ctas { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start; }
+
+    .stats-row {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 14px; margin-bottom: 20px;
+    }
+    .stat-card {
+      background: var(--navy-card); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 18px;
+    }
+    .stat-val {
+      font-family: var(--font-display);
+      font-size: 30px; font-weight: 700;
+      line-height: 1; margin-bottom: 5px;
+    }
+    .stat-val.mint { color: var(--mint); }
+    .stat-val.indigo { color: var(--indigo); }
+    .stat-label { font-size: 12px; color: var(--text-3); }
+
+    /* Sync log */
+    .log-card {
+      background: var(--navy-card); border: 1px solid var(--border);
+      border-radius: var(--r); overflow: hidden;
+    }
+    .log-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      font-size: 11px; font-weight: 600; color: var(--text-3);
+      text-transform: uppercase; letter-spacing: 0.1em;
+    }
+    .btn-reset-log {
+      background: none; border: none; cursor: pointer;
+      font-size: 10px; color: var(--text-3); letter-spacing: 0.05em;
+      padding: 2px 6px; border-radius: 4px; font-family: var(--font-ui);
+      text-transform: uppercase; transition: color 0.2s;
+    }
+    .btn-reset-log:hover { color: var(--red); }
+    .log-empty {
+      padding: 40px; text-align: center;
+      font-size: 13px; color: var(--text-3);
+    }
+    /* Calendar event cards */
+    .log-item {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: stretch; gap: 14px;
+    }
+    .log-item:last-child { border-bottom: none; }
+
+    /* Date badge — left column */
+    .log-date-badge {
+      flex-shrink: 0; width: 46px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: var(--mint-dim);
+      border: 1px solid rgba(110,231,183,0.2);
+      border-radius: 8px;
+      padding: 6px 4px;
+      text-align: center;
+    }
+    .log-date-month {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--mint);
+    }
+    .log-date-day {
+      font-size: 20px; font-weight: 700; line-height: 1.1;
+      color: var(--text-1); font-family: var(--font-display);
+    }
+    .log-date-dow {
+      font-size: 9px; color: var(--text-3); margin-top: 1px;
+    }
+
+    /* Main info */
+    .log-ep-info { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+    .log-ep-title {
+      font-size: 13px; font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .log-ep-meta { font-size: 11px; color: var(--text-3); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .log-ep-tag {
+      font-size: 10px; font-weight: 500;
+      padding: 2px 7px; border-radius: 4px;
+      background: var(--indigo-dim); color: var(--indigo);
+      white-space: nowrap;
+    }
+
+    /* Right side — time + booked indicator */
+    .log-right {
+      flex-shrink: 0; display: flex; flex-direction: column;
+      align-items: flex-end; justify-content: center; gap: 4px;
+    }
+    .log-time { font-size: 11px; color: var(--text-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .log-booked-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10px; font-weight: 600;
+      padding: 2px 8px; border-radius: 10px;
+      background: rgba(110,231,183,0.12);
+      color: var(--mint); white-space: nowrap;
+    }
+
+    /* =========================================================
+       SYNC PROGRESS OVERLAY
+    ========================================================= */
+    #sync-progress-overlay {
+      position: fixed; inset: 0; z-index: 300;
+      background: rgba(10,0,25,0.85);
+      backdrop-filter: blur(6px);
+      display: none; align-items: center; justify-content: center;
+    }
+    #sync-progress-overlay.visible { display: flex; }
+    .sync-progress-card {
+      background: var(--navy-card);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 36px 40px;
+      width: 420px; max-width: 90vw;
+      box-shadow: var(--shadow);
+    }
+    .sync-progress-title {
+      font-family: var(--font-display);
+      font-size: 20px; font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .sync-progress-sub {
+      font-size: 13px; color: var(--text-2); margin-bottom: 28px;
+    }
+    .sync-steps { display: flex; flex-direction: column; gap: 0; }
+    .sync-step-row {
+      display: flex; align-items: flex-start; gap: 14px;
+      padding: 10px 0; position: relative;
+    }
+    .sync-step-row:not(:last-child)::after {
+      content: '';
+      position: absolute; left: 13px; top: 36px;
+      width: 2px; height: calc(100% - 16px);
+      background: var(--border);
+    }
+    .sync-step-icon {
+      width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700;
+      background: var(--border); color: var(--text-3);
+      transition: all 0.3s; position: relative; z-index: 1;
+    }
+    .sync-step-row.done   .sync-step-icon { background: var(--mint-dim); color: var(--mint); border: 1px solid rgba(110,231,183,0.3); }
+    .sync-step-row.active .sync-step-icon { background: var(--indigo-dim); color: var(--indigo); border: 1px solid rgba(129,140,248,0.3); animation: pulse-icon 1.5s infinite; }
+    @keyframes pulse-icon { 0%,100% { box-shadow: 0 0 0 0 rgba(129,140,248,0.3); } 50% { box-shadow: 0 0 0 6px rgba(129,140,248,0); } }
+    .sync-step-text { flex: 1; padding-top: 4px; }
+    .sync-step-label { font-size: 13px; font-weight: 500; color: var(--text-2); }
+    .sync-step-row.done   .sync-step-label { color: var(--text-1); }
+    .sync-step-row.active .sync-step-label { color: var(--indigo); }
+    .sync-step-detail { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+    /* =========================================================
+       BUTTONS
+    ========================================================= */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 20px;
+      font-size: 13px; font-weight: 500;
+      border-radius: var(--r-sm); border: none;
+      transition: all 0.2s; cursor: pointer;
+    }
+    .btn-primary {
+      background: var(--indigo); color: var(--white);
+    }
+    .btn-primary:hover { background: #939af9; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(129,140,248,0.3); }
+    .btn-mint {
+      background: var(--mint); color: var(--navy);
+      font-weight: 600;
+    }
+    .btn-mint:hover { background: #86ebC0; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(110,231,183,0.25); }
+    .btn-outline {
+      background: transparent; color: var(--text-2);
+      border: 1px solid var(--border);
+    }
+    .btn-outline:hover { border-color: var(--border-hover); color: var(--text-1); }
+    .btn-danger {
+      background: transparent; color: var(--red);
+      border: 1px solid rgba(248,113,113,0.25);
+    }
+    .btn-danger:hover { background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.4); }
+    .btn-lg { padding: 13px 28px; font-size: 14px; }
+    .btn svg { width: 15px; height: 15px; }
+
+    /* =========================================================
+       MODAL
+    ========================================================= */
+    .modal-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(10,0,25,0.8);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 300;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .modal-backdrop.open { opacity: 1; pointer-events: all; }
+    .modal-box {
+      background: var(--navy-elevated);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 30px;
+      width: 100%; max-width: 460px;
+      box-shadow: var(--shadow);
+    }
+    .modal-title { font-family: var(--font-display); font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+    .modal-sub { font-size: 13px; color: var(--text-2); margin-bottom: 22px; }
+    .field-group { margin-bottom: 14px; }
+    .field-label { display: block; font-size: 12px; font-weight: 500; color: var(--text-2); margin-bottom: 6px; }
+    .field-input {
+      width: 100%;
+      background: var(--navy-card); border: 1px solid var(--border);
+      border-radius: var(--r-sm); color: var(--text-1);
+      font-size: 14px; padding: 11px 14px; outline: none;
+      transition: all 0.2s;
+    }
+    .field-input:focus { border-color: var(--mint); box-shadow: 0 0 0 3px var(--mint-dim); }
+    .field-hint { font-size: 11px; color: var(--text-3); margin-top: 5px; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
+
+    /* =========================================================
+       TOAST
+    ========================================================= */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--navy-elevated); border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      padding: 13px 18px;
+      font-size: 13px; color: var(--text-1);
+      box-shadow: var(--shadow);
+      z-index: 400;
+      transform: translateY(8px); opacity: 0;
+      transition: all 0.3s ease;
+      max-width: 300px; pointer-events: none;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.success { border-left: 3px solid var(--mint); }
+    .toast.info    { border-left: 3px solid var(--indigo); }
+
+    /* =========================================================
+       EMPTY / INACTIVE STATE
+    ========================================================= */
+    .inactive-state {
+      text-align: center;
+      padding: 60px 24px;
+    }
+    .inactive-icon {
+      width: 56px; height: 56px; border-radius: 14px;
+      background: var(--mint-dim);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 18px;
+      font-size: 24px;
+    }
+    .inactive-title {
+      font-family: var(--font-display);
+      font-size: 18px; font-weight: 600; margin-bottom: 8px;
+    }
+    .inactive-sub { font-size: 13px; color: var(--text-2); margin-bottom: 24px; }
+
+    /* =========================================================
+       FOOTER
+    ========================================================= */
+    .app-footer {
+      padding: 16px 28px;
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .footer-note { font-size: 11px; color: var(--text-3); }
+    .footer-link { color: var(--indigo); }
+
+    /* =========================================================
+       TAB PANELS
+    ========================================================= */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+  </style>
+</head>
+
+<body>
+
+<!-- =============================================================
+     SIGN-IN SCREEN
+============================================================= -->
+<div id="signin-screen">
+  <div class="signin-backdrop"></div>
+  <div class="signin-card">
+    <div class="signin-lockup">
+      <!-- CF Monogram (white SVG, inline) -->
+      <div class="signin-monogram">
+        <svg viewBox="0 0 154.11 104.71" xmlns="http://www.w3.org/2000/svg" aria-label="CreateFuture">
+          <path fill="#fff" d="m0,52.42C0,24.07,20.45,0,54.49,0c17.08,0,31.97,5.95,45.04,18.77-.65,4.79-3.62,8.67-8.8,8.67-4.66,0-7.12-3.49-9.32-7.51-5.69-8.8-15.53-17.34-27.44-17.34-20.58,0-34.43,19.8-34.43,44.78,0,30.67,18.77,48.53,41.55,48.53,19.8,0,35.85-13.85,39.6-36.89h2.2c-4.01,29.77-26.01,45.69-50.6,45.69C20.06,104.71,0,80.5,0,52.42Z"/>
+          <path fill="#fff" d="m93.96,85.42v-32.36c0-6.86,17.21-17.08,17.21-17.08-.78,5.44-1.04,10.22-1.04,17.08v3.5c5.31-16.31,14.75-22.39,28.09-22.39.78,1.68,1.29,3.37,1.29,4.92,0,4.27-3.11,8.15-8.41,8.15-8.02,0-16.95,1.29-20.97,13.72v24.46c0,6.86.26,11.65,1.04,17.08h-18.25c.78-5.44,1.04-10.22,1.04-17.08Z"/>
+          <path fill="#fff" d="m94.05,85.42V18.64c0-7.12-.26-11.78-1.04-17.08h61.09l-3.37,8.28c-13.46-4.92-23.43-5.82-34.69-5.82h-2.98v81.41c0,7.12.26,11.78,1.04,17.08h-21.1c.78-5.31,1.04-9.97,1.04-17.08Z"/>
+        </svg>
+      </div>
+      <div class="signin-slash-divider"></div>
+      <div class="signin-product-name">Pod<em>Sync</em></div>
+    </div>
+
+    <div class="signin-made-by">by CreateFuture · Internal Tool</div>
+
+    <p class="signin-tagline">
+      Your best PM podcast episodes, automatically scheduled into your calendar — around your real meetings.
+    </p>
+
+    <!-- How it works steps -->
+    <div class="signin-steps">
+      <div class="signin-step">
+        <div class="signin-step-icon">🎙️</div>
+        <div class="signin-step-text">
+          <strong>Choose your podcasts</strong>
+          Pick from curated PM shows — Lenny's, Aakash Gupta, How I AI, and more.
+        </div>
+      </div>
+      <div class="signin-step-arrow">→</div>
+      <div class="signin-step">
+        <div class="signin-step-icon">🗓️</div>
+        <div class="signin-step-text">
+          <strong>Set your schedule</strong>
+          Tell us which days and times work. We'll fit episodes around your existing meetings.
+        </div>
+      </div>
+      <div class="signin-step-arrow">→</div>
+      <div class="signin-step">
+        <div class="signin-step-icon">✅</div>
+        <div class="signin-step-text">
+          <strong>Events appear in your calendar</strong>
+          New episodes are booked automatically — no manual effort, ever.
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-google" onclick="handleGoogleSignIn()">
+      <!-- Google "G" icon -->
+      <svg class="google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Sign in with Google
+    </button>
+
+    <p class="signin-restriction">
+      Restricted to <strong>@createfuture.com</strong> Google accounts.<br/>
+      Your calendar data never leaves your session.
+    </p>
+  </div>
+</div>
+
+<!-- =============================================================
+     MAIN APP
+============================================================= -->
+<div id="main-app">
+
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="header-monogram">
+        <svg viewBox="0 0 154.11 104.71" xmlns="http://www.w3.org/2000/svg" aria-label="CF">
+          <path fill="#fff" d="m0,52.42C0,24.07,20.45,0,54.49,0c17.08,0,31.97,5.95,45.04,18.77-.65,4.79-3.62,8.67-8.8,8.67-4.66,0-7.12-3.49-9.32-7.51-5.69-8.8-15.53-17.34-27.44-17.34-20.58,0-34.43,19.8-34.43,44.78,0,30.67,18.77,48.53,41.55,48.53,19.8,0,35.85-13.85,39.6-36.89h2.2c-4.01,29.77-26.01,45.69-50.6,45.69C20.06,104.71,0,80.5,0,52.42Z"/>
+          <path fill="#fff" d="m93.96,85.42v-32.36c0-6.86,17.21-17.08,17.21-17.08-.78,5.44-1.04,10.22-1.04,17.08v3.5c5.31-16.31,14.75-22.39,28.09-22.39.78,1.68,1.29,3.37,1.29,4.92,0,4.27-3.11,8.15-8.41,8.15-8.02,0-16.95,1.29-20.97,13.72v24.46c0,6.86.26,11.65,1.04,17.08h-18.25c.78-5.44,1.04-10.22,1.04-17.08Z"/>
+          <path fill="#fff" d="m94.05,85.42V18.64c0-7.12-.26-11.78-1.04-17.08h61.09l-3.37,8.28c-13.46-4.92-23.43-5.82-34.69-5.82h-2.98v81.41c0,7.12.26,11.78,1.04,17.08h-21.1c.78-5.31,1.04-9.97,1.04-17.08Z"/>
+        </svg>
+      </div>
+      <div class="header-divider"></div>
+      <div class="header-title">Pod<em>Sync</em></div>
+    </div>
+    <div class="header-right">
+      <div class="sync-pill" id="header-sync-pill">
+        <div class="sync-dot"></div>
+        <span id="header-sync-label">No sync active</span>
+      </div>
+      <div class="user-chip" id="user-chip" onclick="toggleUserMenu()">
+        <div class="user-avatar-circle" id="user-avatar">KG</div>
+        <span class="user-name-label" id="user-name-header">Kevin G.</span>
+        <div class="user-dropdown" id="user-dropdown">
+          <button class="dropdown-item" onclick="switchTab('schedule'); closeUserMenu();">⚙ Settings</button>
+          <button class="dropdown-item danger" id="sign-out-btn" onclick="event.stopPropagation(); handleSignOut()">Sign out</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- NAV TABS -->
+  <nav class="app-nav">
+    <button class="nav-tab active" id="tab-btn-podcasts" onclick="switchTab('podcasts')">
+      Podcasts <span class="tab-badge" id="badge-active">2</span>
+    </button>
+    <button class="nav-tab" id="tab-btn-schedule" onclick="switchTab('schedule')">Schedule</button>
+    <button class="nav-tab" id="tab-btn-status" onclick="switchTab('status')">Status</button>
+    <button class="nav-tab" id="tab-btn-history" onclick="switchTab('history')">Sync History</button>
+  </nav>
+
+  <!-- CONTENT -->
+  <main class="app-content">
+
+    <!-- SETUP PROGRESS (shown until sync starts) -->
+    <div class="setup-progress" id="setup-progress">
+      <div class="setup-steps">
+        <div class="setup-step current" id="step-1">
+          <div class="step-num">1</div> Choose podcasts
+        </div>
+        <div class="step-connector"></div>
+        <div class="setup-step" id="step-2">
+          <div class="step-num">2</div> Set schedule
+        </div>
+        <div class="step-connector"></div>
+        <div class="setup-step" id="step-3">
+          <div class="step-num">3</div> Start sync
+        </div>
+      </div>
+      <span class="setup-hint" id="setup-hint-text">Toggle on the podcasts you want ↓</span>
+    </div>
+
+    <!-- ── TAB: PODCASTS ── -->
+    <div id="panel-podcasts" class="tab-panel active">
+      <div class="section-head">
+        <div class="section-title">Your Podcasts</div>
+        <div class="section-sub">Toggle on the channels you want to schedule. Lenny's, Aakash Gupta and How I AI are on by default — the rest are opt-in.</div>
+      </div>
+
+      <div class="channels-grid" id="channels-grid">
+        <!-- Populated by JS -->
+      </div>
+
+      <div class="tab-actions">
+        <button class="btn btn-outline" onclick="openAddChannelModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add a channel
+        </button>
+        <button class="btn btn-primary" onclick="switchTab('schedule')">
+          Next: Set schedule →
+        </button>
+      </div>
+    </div>
+
+    <!-- ── TAB: SCHEDULE ── -->
+    <div id="panel-schedule" class="tab-panel">
+      <div class="section-head">
+        <div class="section-title">Schedule Settings</div>
+        <div class="section-sub">Choose when podcast episodes can be placed in your calendar, and how long you want the sync to run.</div>
+      </div>
+
+      <div class="schedule-grid">
+        <!-- Days -->
+        <div class="sched-card">
+          <div class="sched-card-title">Days of the week</div>
+          <div class="day-pills">
+            <div class="day-pill"><input type="checkbox" id="day-mon" checked onchange="updateSchedulePreview()"/><label for="day-mon">Mon</label></div>
+            <div class="day-pill"><input type="checkbox" id="day-tue" checked onchange="updateSchedulePreview()"/><label for="day-tue">Tue</label></div>
+            <div class="day-pill"><input type="checkbox" id="day-wed" checked onchange="updateSchedulePreview()"/><label for="day-wed">Wed</label></div>
+            <div class="day-pill"><input type="checkbox" id="day-thu" checked onchange="updateSchedulePreview()"/><label for="day-thu">Thu</label></div>
+            <div class="day-pill"><input type="checkbox" id="day-fri" checked onchange="updateSchedulePreview()"/><label for="day-fri">Fri</label></div>
+            <div class="day-pill"><input type="checkbox" id="day-sat" onchange="updateSchedulePreview()"/><label for="day-sat">Sat</label></div>
+            <div class="day-pill"><input type="checkbox" id="day-sun" onchange="updateSchedulePreview()"/><label for="day-sun">Sun</label></div>
+          </div>
+        </div>
+
+        <!-- Time window -->
+        <div class="sched-card">
+          <div class="sched-card-title">Time window</div>
+          <div class="time-row">
+            <span class="time-lbl">From</span>
+            <input class="time-input" type="time" id="time-start" value="09:00" onchange="updateSchedulePreview()"/>
+          </div>
+          <div class="time-row">
+            <span class="time-lbl">To</span>
+            <input class="time-input" type="time" id="time-end" value="12:00" onchange="updateSchedulePreview()"/>
+          </div>
+        </div>
+
+        <!-- Duration -->
+        <div class="sched-card" style="grid-column: 1 / -1;">
+          <div class="sched-card-title">Sync duration — how many weeks to run?</div>
+          <div class="duration-grid">
+            <div class="dur-opt"><input type="radio" name="duration" id="dur-2" value="2" onchange="updateSchedulePreview()"/><label for="dur-2"><span class="dur-num">2</span><span class="dur-unit">weeks</span></label></div>
+            <div class="dur-opt"><input type="radio" name="duration" id="dur-4" value="4" checked onchange="updateSchedulePreview()"/><label for="dur-4"><span class="dur-num">4</span><span class="dur-unit">weeks</span></label></div>
+            <div class="dur-opt"><input type="radio" name="duration" id="dur-8" value="8" onchange="updateSchedulePreview()"/><label for="dur-8"><span class="dur-num">8</span><span class="dur-unit">weeks</span></label></div>
+            <div class="dur-opt"><input type="radio" name="duration" id="dur-12" value="12" onchange="updateSchedulePreview()"/><label for="dur-12"><span class="dur-num">12</span><span class="dur-unit">weeks</span></label></div>
+          </div>
+          <p style="margin-top:12px; font-size:12px; color:var(--text-3);">
+            The sync automatically stops at the end of this period. You can extend, pause, or cancel any time from the Status tab.
+          </p>
+        </div>
+      </div>
+
+      <!-- Live preview sentence -->
+      <div class="schedule-preview" id="schedule-preview">
+        PodSync will check for new episodes and book them into gaps in your calendar on <strong id="prev-days">Mon – Fri</strong>, between <strong id="prev-start">9:00 AM</strong> and <strong id="prev-end">12:00 PM</strong>, for the next <span class="preview-accent" id="prev-duration">4 weeks</span>.
+      </div>
+
+      <div style="display:flex; gap:10px;">
+        <button class="btn btn-outline" onclick="switchTab('podcasts')">← Back</button>
+        <button class="btn btn-mint btn-lg" id="start-sync-btn" onclick="confirmStartSync()">
+          ✓ Save &amp; Start Sync
+        </button>
+      </div>
+    </div>
+
+    <!-- ── TAB: STATUS ── -->
+    <div id="panel-status" class="tab-panel">
+
+      <!-- INACTIVE STATE — shown before sync starts -->
+      <div id="status-inactive" class="inactive-state">
+        <div class="inactive-icon">📅</div>
+        <div class="inactive-title">No sync running yet</div>
+        <p class="inactive-sub">Choose your podcasts and set your schedule to get started.<br/>Takes under a minute.</p>
+        <button class="btn btn-mint btn-lg" onclick="switchTab('podcasts')">Get started →</button>
+      </div>
+
+      <!-- ACTIVE STATE — shown once sync is running -->
+      <div id="status-active" style="display:none;">
+
+        <!-- Hero -->
+        <div class="status-hero">
+          <div>
+            <div class="status-badge active" id="status-badge">
+              <div class="status-badge-dot"></div>
+              <span id="status-badge-text">Sync Active</span>
+            </div>
+            <div class="status-headline" id="status-headline">Episodes being added to your calendar</div>
+            <div class="status-subline" id="status-subline">Running until <strong id="sync-end-date">—</strong> · Next check in <strong id="next-sync-time">~22 hours</strong></div>
+            <!-- progress bar removed -->
+          </div>
+          <div class="status-ctas">
+            <button class="btn btn-outline" id="pause-resume-btn" onclick="togglePause()">⏸ Pause sync</button>
+            <button class="btn btn-outline" onclick="openExtendModal()">+ Extend</button>
+            <button class="btn btn-danger" onclick="confirmCancel()">✕ Cancel</button>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-val mint" id="stat-scheduled">0</div>
+            <div class="stat-label">Episodes scheduled</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-val indigo" id="stat-channels">2</div>
+            <div class="stat-label">Active channels</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-val" id="stat-weeks">4</div>
+            <div class="stat-label">Weeks remaining</div>
+          </div>
+        </div>
+
+        <!-- Sync log / History -->
+        <div class="log-card">
+          <div class="log-header" style="display:flex; align-items:center; justify-content:space-between;">
+            Sync history
+            <button class="btn-reset-log" onclick="confirmResetSyncData()" title="Clear sync history and reset for testing">↺ Reset data</button>
+          </div>
+          <div id="sync-log-body">
+            <div class="log-empty">Episodes will appear here once the first sync runs.</div>
+          </div>
+          <div id="sync-log-footer" style="display:none; padding:10px 18px; border-top:1px solid var(--border); text-align:center;">
+            <button class="btn-reset-log" id="load-more-btn" onclick="loadFullHistory()" style="font-size:11px; color:var(--text-2); text-transform:none; letter-spacing:0;">
+              Show older entries ↓
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── TAB: SYNC HISTORY ── -->
+    <div id="panel-history" class="tab-panel">
+      <div class="section-head">
+        <div class="section-title">Sync History</div>
+        <div class="section-sub">All episodes that have been scheduled to your Google Calendar.</div>
+      </div>
+      <div class="log-card" style="margin-top:0;">
+        <div id="history-log-body">
+          <div class="log-empty">Loading history…</div>
+        </div>
+        <div id="history-log-footer" style="display:none; padding:10px 18px; border-top:1px solid var(--border); text-align:center;">
+          <button class="btn-reset-log" id="history-load-more-btn" onclick="loadMoreHistory()" style="font-size:11px; color:var(--text-2); text-transform:none; letter-spacing:0;">
+            Show older entries ↓
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="app-footer">
+    <span class="footer-note">CF PodSync v2.0 · Internal tool · CreateFuture Product Team</span>
+    <a class="footer-note footer-link" href="https://github.com/nivek-neerg/CF-Product-Pod-Calendar-Sync" target="_blank">GitHub →</a>
+  </footer>
+</div>
+
+<!-- =============================================================
+     MODAL: Add Custom Channel
+============================================================= -->
+<div class="modal-backdrop" id="add-channel-modal">
+  <div class="modal-box">
+    <div class="modal-title">Add a YouTube channel</div>
+    <div class="modal-sub">Paste in the channel handle or URL and we'll pull in the details.</div>
+    <div class="field-group">
+      <label class="field-label" for="custom-handle">YouTube channel handle or URL</label>
+      <input class="field-input" id="custom-handle" type="text" placeholder="e.g. @LennysPodcast or youtube.com/c/LennysPodcast"/>
+      <div class="field-hint">The handle starts with @ and can be found on the channel's YouTube page.</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('add-channel-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addCustomChannel()">Add channel</button>
+    </div>
+  </div>
+</div>
+
+<!-- =============================================================
+     MODAL: Extend Sync
+============================================================= -->
+<div class="modal-backdrop" id="extend-modal">
+  <div class="modal-box">
+    <div class="modal-title">Extend your sync</div>
+    <div class="modal-sub">How many additional weeks would you like to add?</div>
+    <div class="duration-grid" style="margin-bottom:4px;">
+      <div class="dur-opt"><input type="radio" name="extend-weeks" id="ext-2" value="2" checked/><label for="ext-2"><span class="dur-num">2</span><span class="dur-unit">weeks</span></label></div>
+      <div class="dur-opt"><input type="radio" name="extend-weeks" id="ext-4" value="4"/><label for="ext-4"><span class="dur-num">4</span><span class="dur-unit">weeks</span></label></div>
+      <div class="dur-opt"><input type="radio" name="extend-weeks" id="ext-8" value="8"/><label for="ext-8"><span class="dur-num">8</span><span class="dur-unit">weeks</span></label></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('extend-modal')">Cancel</button>
+      <button class="btn btn-mint" onclick="extendSync()">Extend sync</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast notification -->
+<div class="toast" id="toast"></div>
+
+<!-- =============================================================
+     JAVASCRIPT
+============================================================= -->
+<script>
+'use strict';
+
+// ================================================================
+// CONFIG — credentials for CF PodSync internal tool
+// ================================================================
+const SUPABASE_URL = 'https://oqwbbmidavziwtxgjafx.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9xd2JibWlkYXZ6aXd0eGdqYWZ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTkxODksImV4cCI6MjA4ODU5NTE4OX0.t-eEveREnOfZR4ak3aZuw8RFPAYVoNRQPr4nLEkqOUs';
+const YOUTUBE_KEY  = 'AIzaSyC11zPyuojWxNVqd1rHFnnwFi8MaSFe9MA';
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ================================================================
+// CHANNEL DATA
+// ================================================================
+const CHANNELS = [
+  {
+    id: 'lenny',
+    name: "Lenny's Podcast",
+    handle: '@LennysPodcast',
+    ytHandle: 'LennysPodcast',
+    host: 'Lenny Rachitsky',
+    desc: 'The go-to PM podcast. Deep dives with CPOs from OpenAI, Airbnb, and beyond.',
+    subs: '900K subscribers',
+    color: '#6EE7B7',
+    initials: 'L',
+    ytThumb: null,
+    on: true,
+  },
+  {
+    id: 'aakash',
+    name: 'Aakash Gupta',
+    handle: '@growproduct',
+    ytHandle: 'growproduct',
+    host: 'Aakash Gupta',
+    desc: 'Sharp, tactical content on PM craft, growth, and career development.',
+    subs: '180K subscribers',
+    color: '#818CF8',
+    initials: 'A',
+    ytThumb: null,
+    on: true,
+  },
+  {
+    id: 'howiai',
+    name: 'How I AI',
+    handle: '@howiaipodcast',
+    ytHandle: 'howiaipodcast',
+    host: 'How I AI Podcast',
+    desc: 'Real stories of how PMs and product teams are using AI in their day-to-day work.',
+    subs: '',
+    color: '#F472B6',
+    initials: 'HI',
+    ytThumb: null,
+    on: true,
+  },
+];
+
+// ================================================================
+// APP STATE
+// ================================================================
+let appState = {
+  user: null,
+  accessToken: null,
+  channels: JSON.parse(JSON.stringify(CHANNELS)),
+  syncStatus: 'inactive',
+  syncStartDate: null,
+  syncEndDate: null,
+  syncDurationWeeks: 4,
+  episodesScheduled: 0,
+  syncLog: [],
+  isPaused: false,
+  currentTab: 'podcasts',
+  preferredDays: ['Monday','Tuesday','Wednesday','Thursday','Friday'],
+  timeStart: '09:00',
+  timeEnd: '12:00',
+};
+
+// ================================================================
+// AUTH — listen for Supabase sign-in / sign-out events
+// ================================================================
+db.auth.onAuthStateChange(async (event, session) => {
+  if (event === 'SIGNED_IN' && session) {
+    const u = session.user;
+    if (!u.email.endsWith('@createfuture.com')) {
+      showToast('info', 'Only @createfuture.com accounts are allowed.');
+      await db.auth.signOut();
+      return;
+    }
+    appState.accessToken = session.provider_token;
+    const nameParts = (u.user_metadata?.full_name || u.email.split('@')[0]).split(' ');
+    const initials = nameParts.map(n => n[0]).join('').slice(0,2).toUpperCase();
+    signInUser({
+      id: u.id,
+      name: u.user_metadata?.full_name || u.email.split('@')[0],
+      email: u.email,
+      initials,
+    });
+    await loadUserPreferences(u.id);
+  } else if (event === 'SIGNED_OUT') {
+    resetApp();
+  }
+});
+
+// ================================================================
+// SIGN-IN FLOW
+// ================================================================
+async function handleGoogleSignIn() {
+  const btn = document.querySelector('.btn-google');
+  if (btn) { btn.textContent = 'Signing in…'; btn.disabled = true; }
+  const { error } = await db.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.origin + window.location.pathname,
+      scopes: 'https://www.googleapis.com/auth/calendar.events',
+      queryParams: { hd: 'createfuture.com', access_type: 'offline' },
+    },
+  });
+  if (error) {
+    showToast('info', 'Sign-in failed: ' + error.message);
+    if (btn) { btn.textContent = 'Sign in with Google'; btn.disabled = false; }
+  }
+}
+
+function launchDemo() {
+  signInUser({ id: 'demo', name: 'Kevin Green', email: 'kevin.green@createfuture.com', initials: 'KG' });
+}
+
+function signInUser(user) {
+  appState.user = user;
+  document.getElementById('signin-screen').classList.add('hidden');
+  document.getElementById('main-app').classList.add('visible');
+  const firstName = user.name.split(' ')[0];
+  const lastInitial = (user.name.split(' ')[1] || '')[0] || '';
+  document.getElementById('user-avatar').textContent = user.initials;
+  document.getElementById('user-name-header').textContent = firstName + (lastInitial ? ' ' + lastInitial + '.' : '');
+  renderChannels();
+  updateSchedulePreview();
+  updateBadge();
+}
+
+function resetApp() {
+  appState = {
+    user: null, accessToken: null,
+    channels: JSON.parse(JSON.stringify(CHANNELS)),
+    syncStatus: 'inactive', syncStartDate: null, syncEndDate: null,
+    syncDurationWeeks: 4, episodesScheduled: 0, syncLog: [], isPaused: false,
+    currentTab: 'podcasts',
+    preferredDays: ['Monday','Tuesday','Wednesday','Thursday','Friday'],
+    timeStart: '09:00', timeEnd: '12:00',
+  };
+  document.getElementById('main-app').classList.remove('visible');
+  document.getElementById('signin-screen').classList.remove('hidden');
+  closeUserMenu();
+}
+
+function handleSignOut() {
+  // Fire signOut but don't wait — clear storage and navigate immediately
+  try { db.auth.signOut(); } catch(e) {}
+  try {
+    Object.keys(localStorage).forEach(k => { if (k.startsWith('sb-')) localStorage.removeItem(k); });
+    sessionStorage.clear();
+  } catch(e) {}
+  window.location.href = window.location.pathname;
+}
+
+// ================================================================
+// LOAD SAVED PREFERENCES FROM SUPABASE
+// ================================================================
+async function loadUserPreferences(userId) {
+  try {
+    // Restore any custom channels saved locally first, so Supabase can apply their enabled state
+    try {
+      const saved = JSON.parse(localStorage.getItem('cf-custom-channels') || '[]');
+      saved.forEach(ch => {
+        if (!appState.channels.find(c => c.id === ch.id)) appState.channels.push(ch);
+      });
+    } catch (e) {}
+
+    const { data: chData } = await db.from('user_channels').select('channel_id, enabled').eq('user_id', userId);
+    if (chData && chData.length > 0) {
+      chData.forEach(row => {
+        const ch = appState.channels.find(c => c.id === row.channel_id);
+        if (ch) ch.on = row.enabled;
+      });
+      renderChannels();
+      updateBadge();
+    }
+    const { data: syncData } = await db.from('user_syncs').select('*').eq('user_id', userId).maybeSingle();
+    if (syncData) {
+      appState.syncStatus        = syncData.status || 'inactive';
+      appState.syncDurationWeeks = syncData.duration_weeks || 4;
+      appState.preferredDays     = syncData.preferred_days || ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+      appState.timeStart         = (syncData.time_window_start || '09:00:00').slice(0,5);
+      appState.timeEnd           = (syncData.time_window_end   || '12:00:00').slice(0,5);
+      appState.episodesScheduled = syncData.episodes_scheduled || 0;
+      if (syncData.sync_start_date) appState.syncStartDate = new Date(syncData.sync_start_date);
+      if (syncData.sync_end_date)   appState.syncEndDate   = new Date(syncData.sync_end_date);
+      if (syncData.status === 'active' || syncData.status === 'paused') {
+        updateSyncUI();
+        hideSetupProgress();
+      }
+      // Always load recent log entries regardless of sync status
+      const { data: logData } = await db.from('sync_log').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(20);
+      if (logData) {
+        const parsed = logData.map(r => { try { return JSON.parse(r.message); } catch { return { message: r.message, channelName: '' }; } });
+        appState.syncLog = parsed;
+        renderSyncLog(parsed);
+      }
+      restoreScheduleUI();
+    }
+  } catch (e) { console.warn('Could not load preferences:', e); }
+}
+
+function restoreScheduleUI() {
+  const dayMap = { Monday:'mon', Tuesday:'tue', Wednesday:'wed', Thursday:'thu', Friday:'fri', Saturday:'sat', Sunday:'sun' };
+  Object.values(dayMap).forEach(d => { const el = document.getElementById('day-' + d); if (el) el.checked = false; });
+  appState.preferredDays.forEach(day => { const el = document.getElementById('day-' + (dayMap[day] || '')); if (el) el.checked = true; });
+  const tsEl = document.getElementById('time-start'); if (tsEl) tsEl.value = appState.timeStart;
+  const teEl = document.getElementById('time-end');   if (teEl) teEl.value = appState.timeEnd;
+  const durEl = document.querySelector(`input[name="duration"][value="${appState.syncDurationWeeks}"]`);
+  if (durEl) durEl.checked = true;
+  updateSchedulePreview();
+}
+
+// ================================================================
+// CHANNEL THUMBNAILS — fetch YouTube profile images
+// ================================================================
+async function loadChannelThumbnails() {
+  for (const ch of appState.channels) {
+    if (ch.ytThumb) continue; // already loaded
+    try {
+      const res  = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=snippet&forHandle=${ch.ytHandle}&key=${YOUTUBE_KEY}`);
+      const data = await res.json();
+      if (data.items?.length) {
+        const thumbs = data.items[0].snippet.thumbnails;
+        ch.ytThumb = (thumbs.medium || thumbs.default || thumbs.high)?.url || null;
+        // Also update live subs if we have it
+        const stats = data.items[0].statistics;
+        if (stats?.subscriberCount) {
+          const n = parseInt(stats.subscriberCount);
+          ch.subs = n >= 1000000 ? (n/1000000).toFixed(1).replace(/\.0$/,'') + 'M subscribers'
+                  : n >= 1000    ? Math.round(n/1000) + 'K subscribers'
+                  : n + ' subscribers';
+        }
+        // Refresh just this card's avatar
+        const avatarEl = document.querySelector(`#card-${ch.id} .channel-avatar`);
+        if (avatarEl && ch.ytThumb) {
+          avatarEl.innerHTML = `<img src="${ch.ytThumb}" alt="${ch.name}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+          avatarEl.style.background = 'none';
+          avatarEl.style.padding = '0';
+        }
+        const subsEl = document.querySelector(`#card-${ch.id} .channel-subs`);
+        if (subsEl && ch.subs) subsEl.textContent = '▲ ' + ch.subs;
+      }
+    } catch (e) { /* silently skip if thumbnail fails */ }
+  }
+}
+
+// ================================================================
+// CHANNEL CARDS
+// ================================================================
+function renderChannels() {
+  const grid = document.getElementById('channels-grid');
+  grid.innerHTML = '';
+  appState.channels.forEach(ch => {
+    const card = document.createElement('div');
+    card.className = 'channel-card' + (ch.on ? ' on' : '');
+    card.id = 'card-' + ch.id;
+    card.style.setProperty('--accent', ch.color);
+    const avatarContent = ch.ytThumb
+      ? `<img src="${ch.ytThumb}" alt="${ch.name}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
+      : ch.initials;
+    const avatarStyle = ch.ytThumb
+      ? `style="background:none;padding:0;color:${ch.color};"`
+      : `style="background:${ch.color}22; color:${ch.color};"`;
+    card.innerHTML = `
+      <button class="channel-delete" onclick="deleteChannel('${ch.id}')" title="Remove ${ch.name}">✕</button>
+      <div class="channel-top">
+        <div class="channel-avatar" ${avatarStyle}>${avatarContent}</div>
+        <div class="channel-meta">
+          <div class="channel-name">${ch.name}</div>
+          <div class="channel-host">${ch.host} · ${ch.handle}</div>
+        </div>
+      </div>
+      <div class="channel-desc">${ch.desc}</div>
+      <div class="channel-footer">
+        <span class="channel-subs">▲ ${ch.subs}</span>
+        <label class="toggle" title="${ch.on ? 'Turn off' : 'Turn on'} ${ch.name}">
+          <input type="checkbox" ${ch.on ? 'checked' : ''} onchange="toggleChannel('${ch.id}', this.checked)"/>
+          <span class="toggle-track"></span>
+        </label>
+      </div>`;
+    grid.appendChild(card);
+  });
+  const addBtn = document.createElement('button');
+  addBtn.className = 'add-channel-btn';
+  addBtn.onclick = openAddChannelModal;
+  addBtn.innerHTML = `<div class="add-icon">+</div> Add another channel`;
+  grid.appendChild(addBtn);
+  // Load thumbnails in background after rendering
+  loadChannelThumbnails();
+}
+
+async function toggleChannel(id, checked) {
+  const ch = appState.channels.find(c => c.id === id);
+  if (!ch) return;
+  ch.on = checked;
+  const card = document.getElementById('card-' + id);
+  if (card) { card.className = 'channel-card' + (checked ? ' on' : ''); card.style.setProperty('--accent', ch.color); }
+  updateBadge();
+  updateSchedulePreview();
+  if (appState.user?.id && appState.user.id !== 'demo') {
+    await db.from('user_channels').upsert({ user_id: appState.user.id, channel_id: id, enabled: checked });
+  }
+}
+
+async function deleteChannel(id) {
+  const ch = appState.channels.find(c => c.id === id);
+  if (!ch) return;
+  if (!confirm(`Remove "${ch.name}" from your channels?`)) return;
+  appState.channels = appState.channels.filter(c => c.id !== id);
+  // Remove from localStorage if it's a custom channel
+  try {
+    const saved = JSON.parse(localStorage.getItem('cf-custom-channels') || '[]');
+    localStorage.setItem('cf-custom-channels', JSON.stringify(saved.filter(c => c.id !== id)));
+  } catch (e) {}
+  renderChannels(); updateBadge();
+  if (appState.user?.id && appState.user.id !== 'demo') {
+    await db.from('user_channels').delete().eq('user_id', appState.user.id).eq('channel_id', id);
+  }
+}
+
+function updateBadge() {
+  const count = appState.channels.filter(c => c.on).length;
+  document.getElementById('badge-active').textContent = count;
+  const el = document.getElementById('stat-channels');
+  if (el) el.textContent = count;
+}
+
+// ================================================================
+// SCHEDULE SETTINGS
+// ================================================================
+function updateSchedulePreview() {
+  const days = ['mon','tue','wed','thu','fri','sat','sun'];
+  const dayLabels = { mon:'Mon', tue:'Tue', wed:'Wed', thu:'Thu', fri:'Fri', sat:'Sat', sun:'Sun' };
+  const dayFull   = { mon:'Monday', tue:'Tuesday', wed:'Wednesday', thu:'Thursday', fri:'Friday', sat:'Saturday', sun:'Sunday' };
+  const selected  = days.filter(d => document.getElementById('day-' + d)?.checked);
+  const startRaw  = document.getElementById('time-start')?.value || '09:00';
+  const endRaw    = document.getElementById('time-end')?.value   || '12:00';
+  const duration  = document.querySelector('input[name="duration"]:checked')?.value || '4';
+  const fmt = t => { const [h, m] = t.split(':').map(Number); return `${h % 12 || 12}:${m.toString().padStart(2,'0')} ${h >= 12 ? 'PM' : 'AM'}`; };
+  const dayStr = selected.length === 5 && !selected.includes('sat') && !selected.includes('sun') ? 'Mon – Fri'
+    : selected.length === 7 ? 'every day'
+    : selected.map(d => dayLabels[d]).join(', ') || 'no days selected';
+  document.getElementById('prev-days').textContent     = dayStr;
+  document.getElementById('prev-start').textContent    = fmt(startRaw);
+  document.getElementById('prev-end').textContent      = fmt(endRaw);
+  document.getElementById('prev-duration').textContent = duration + ' weeks';
+  appState.syncDurationWeeks = parseInt(duration);
+  appState.preferredDays     = selected.map(d => dayFull[d]);
+  appState.timeStart = startRaw;
+  appState.timeEnd   = endRaw;
+}
+
+// ================================================================
+// YOUTUBE API
+// ================================================================
+async function fetchChannelEpisodes(ytHandle, maxResults = 3) {
+  try {
+    const chanRes  = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=contentDetails,snippet&forHandle=${ytHandle}&key=${YOUTUBE_KEY}`);
+    const chanData = await chanRes.json();
+    if (!chanData.items?.length) { console.warn('Channel not found:', ytHandle); return []; }
+    const uploadsId    = chanData.items[0].contentDetails.relatedPlaylists.uploads;
+    const channelTitle = chanData.items[0].snippet.title;
+    const vidsRes  = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsId}&maxResults=${maxResults}&key=${YOUTUBE_KEY}`);
+    const vidsData = await vidsRes.json();
+    if (!vidsData.items) return [];
+    const videoIds   = vidsData.items.map(i => i.snippet.resourceId.videoId).join(',');
+    const detailRes  = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${videoIds}&key=${YOUTUBE_KEY}`);
+    const detailData = await detailRes.json();
+    const durationMap = {};
+    (detailData.items || []).forEach(v => { durationMap[v.id] = parseISO8601Duration(v.contentDetails.duration); });
+    return vidsData.items.map(item => {
+      const videoId = item.snippet.resourceId.videoId;
+      return { title: item.snippet.title, videoId, channelTitle, publishedAt: item.snippet.publishedAt, durationMins: durationMap[videoId] || 60, url: `https://www.youtube.com/watch?v=${videoId}` };
+    }).filter(ep => ep.durationMins >= 5); // exclude Shorts and very short clips
+  } catch (e) { console.warn('YouTube fetch error for', ytHandle, e); return []; }
+}
+
+function parseISO8601Duration(dur) {
+  const m = dur.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!m) return 60;
+  return parseInt(m[1] || 0) * 60 + parseInt(m[2] || 0) || 60;
+}
+
+// ================================================================
+// GOOGLE CALENDAR API
+// ================================================================
+async function getCalendarEvents(token, timeMin, timeMax) {
+  const url = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
+  url.searchParams.set('timeMin', timeMin);
+  url.searchParams.set('timeMax', timeMax);
+  url.searchParams.set('singleEvents', 'true');
+  url.searchParams.set('orderBy', 'startTime');
+  url.searchParams.set('maxResults', '250');
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  return await res.json();
+}
+
+async function createCalendarEvent(token, { title, description, url, start, end }) {
+  const body = {
+    summary: `🎧 ${title}`,
+    description: `${description}\n\n🔗 ${url}`,
+    start: { dateTime: start.toISOString() },
+    end:   { dateTime: end.toISOString() },
+    colorId: '2',
+  };
+  const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return await res.json();
+}
+
+function findFreeSlots(existingEvents, preferredDays, timeStart, timeEnd, durationMins, syncStart, syncEnd) {
+  const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const busy = existingEvents.filter(ev => ev.start?.dateTime).map(ev => ({ start: new Date(ev.start.dateTime), end: new Date(ev.end.dateTime) }));
+  const slots = [];
+  const current = new Date(syncStart);
+  current.setHours(0,0,0,0);
+  const [sH, sM] = timeStart.split(':').map(Number);
+  const [eH, eM] = timeEnd.split(':').map(Number);
+  while (current <= syncEnd && slots.length < 30) {
+    if (preferredDays.includes(dayNames[current.getDay()])) {
+      const winStart = new Date(current); winStart.setHours(sH, sM, 0, 0);
+      const winEnd   = new Date(current); winEnd.setHours(eH, eM, 0, 0);
+      if (winEnd > new Date()) {
+        let ss = new Date(Math.max(winStart.getTime(), Date.now() + 3600000));
+        let se = new Date(ss.getTime() + durationMins * 60000);
+        let attempts = 0;
+        while (se <= winEnd && attempts++ < 20) {
+          const conflicts = busy.filter(b => ss < b.end && se > b.start);
+          if (conflicts.length === 0) { slots.push({ start: new Date(ss), end: new Date(se) }); break; }
+          const latest = new Date(Math.max(...conflicts.map(c => c.end.getTime())));
+          ss = new Date(latest.getTime() + 15 * 60000);
+          se = new Date(ss.getTime() + durationMins * 60000);
+        }
+      }
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  return slots;
+}
+
+// ================================================================
+// MAIN SYNC ENGINE
+// ================================================================
+async function runActualSync() {
+  if (appState.user?.id === 'demo' || !appState.accessToken) {
+    addDemoSyncLog(); return;
+  }
+  appState.syncAborted = false;
+  showSyncOverlay();
+  try {
+    const syncStart = new Date();
+    const syncEnd   = new Date(appState.syncEndDate);
+
+    // Step 1 — Fetch episodes from YouTube
+    setSyncStep(1);
+    const enabled   = appState.channels.filter(c => c.on);
+    let allEpisodes = [];
+    for (const ch of enabled) {
+      if (appState.syncAborted) { hideSyncOverlay(); return; }
+      setSyncStep(1, `Fetching from ${ch.name}…`);
+      const eps = await fetchChannelEpisodes(ch.ytHandle || ch.handle.replace('@',''), 2);
+      eps.forEach(ep => allEpisodes.push({ ...ep, channelName: ch.name, channelId: ch.id }));
+    }
+    if (appState.syncAborted) { hideSyncOverlay(); return; }
+    if (!allEpisodes.length) {
+      hideSyncOverlay();
+      showToast('info', 'No episodes found from your selected channels.');
+      return;
+    }
+    setSyncStep(1, `Found ${allEpisodes.length} episode${allEpisodes.length !== 1 ? 's' : ''}`);
+
+    // Step 2 — Check calendar
+    setSyncStep(2);
+    const calData   = await getCalendarEvents(appState.accessToken, syncStart.toISOString(), syncEnd.toISOString());
+    if (appState.syncAborted) { hideSyncOverlay(); return; }
+    const existing  = calData.items || [];
+    const avgDur    = Math.round(allEpisodes.reduce((s,ep) => s + ep.durationMins, 0) / allEpisodes.length);
+    const slotDur   = Math.min(avgDur, 90);
+    const slots     = findFreeSlots(existing, appState.preferredDays, appState.timeStart, appState.timeEnd, slotDur, syncStart, syncEnd);
+    if (!slots.length) {
+      hideSyncOverlay();
+      showToast('info', 'No free slots found. Try widening your time window in Schedule settings.');
+      return;
+    }
+    setSyncStep(2, `Found ${slots.length} free slot${slots.length !== 1 ? 's' : ''} in your calendar`);
+
+    // Step 3 — Book episodes
+    setSyncStep(3);
+    const toSchedule = Math.min(slots.length, allEpisodes.length);
+    const logEntries = [];
+    for (let i = 0; i < toSchedule; i++) {
+      if (appState.syncAborted) { hideSyncOverlay(); return; }
+      const ep   = allEpisodes[i % allEpisodes.length];
+      const slot = slots[i];
+      setSyncStep(3, `Booking ${i + 1} of ${toSchedule}…`);
+      const adjEnd   = new Date(slot.start.getTime() + ep.durationMins * 60000);
+      const calEvent = await createCalendarEvent(appState.accessToken, {
+        title: ep.title, description: `Podcast: ${ep.channelName}`, url: ep.url, start: slot.start, end: adjEnd,
+      });
+      if (calEvent.id) {
+        logEntries.push({ title: ep.title, channelName: ep.channelName, scheduledFor: slot.start, durationMins: ep.durationMins });
+        await db.from('sync_log').insert({ user_id: appState.user.id, message: JSON.stringify({ title: ep.title, channelName: ep.channelName, scheduledFor: slot.start.toISOString(), durationMins: ep.durationMins }) });
+      }
+    }
+    if (appState.syncAborted) { hideSyncOverlay(); return; }
+
+    appState.episodesScheduled += logEntries.length;
+    await db.from('user_syncs').upsert({
+      user_id: appState.user.id, status: 'active',
+      preferred_days: appState.preferredDays,
+      time_window_start: appState.timeStart + ':00',
+      time_window_end:   appState.timeEnd + ':00',
+      duration_weeks: appState.syncDurationWeeks,
+      sync_start_date: appState.syncStartDate,
+      sync_end_date: appState.syncEndDate,
+      episodes_scheduled: appState.episodesScheduled,
+      updated_at: new Date().toISOString(),
+    });
+
+    // Step 4 — Done
+    setSyncStep(4, `${logEntries.length} episode${logEntries.length !== 1 ? 's' : ''} added to your Google Calendar`);
+    renderSyncLog(logEntries);
+    document.getElementById('stat-scheduled').textContent = appState.episodesScheduled;
+    setTimeout(hideSyncOverlay, 2500);
+
+  } catch (e) {
+    console.error('Sync error:', e);
+    hideSyncOverlay();
+    showToast('info', 'Sync error — please try signing out and back in, then sync again.');
+  }
+}
+
+function renderSyncLog(entries) {
+  const body   = document.getElementById('sync-log-body');
+  const footer = document.getElementById('sync-log-footer');
+  if (!entries?.length) {
+    body.innerHTML = '<div class="log-empty">No episodes scheduled yet.</div>';
+    if (footer) footer.style.display = 'none';
+    return;
+  }
+  body.innerHTML = '';
+  if (footer) footer.style.display = entries.length >= 20 ? '' : 'none';
+  entries.forEach(entry => {
+    const dt      = entry.scheduledFor ? new Date(entry.scheduledFor) : null;
+    const month   = dt ? dt.toLocaleString('en-GB', { month: 'short' }).toUpperCase() : '';
+    const day     = dt ? dt.getDate() : '';
+    const dow     = dt ? dt.toLocaleString('en-GB', { weekday: 'short' }) : '';
+    const timeStr = dt ? dt.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true }) : '';
+    const title   = entry.title || entry.message || 'Episode';
+    const channel = entry.channelName || '';
+    const dur     = entry.durationMins ? `${entry.durationMins} min` : '';
+    const item    = document.createElement('div');
+    item.className = 'log-item';
+    item.innerHTML = `
+      <div class="log-date-badge">
+        <div class="log-date-month">${month || '—'}</div>
+        <div class="log-date-day">${day || '?'}</div>
+        <div class="log-date-dow">${dow}</div>
+      </div>
+      <div class="log-ep-info">
+        <div class="log-ep-title">${title}</div>
+        <div class="log-ep-meta">
+          ${channel ? `<span class="log-ep-tag">${channel}</span>` : ''}
+          ${dur ? `<span>🎧 ${dur}</span>` : ''}
+        </div>
+      </div>
+      <div class="log-right">
+        ${timeStr ? `<div class="log-time">${timeStr}</div>` : ''}
+        <div class="log-booked-badge">✓ Booked</div>
+      </div>`;
+    body.appendChild(item);
+  });
+}
+
+async function loadFullHistory() {
+  const btn = document.getElementById('load-more-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
+  const userId = appState.user?.id;
+  if (!userId || userId === 'demo') {
+    if (btn) { btn.disabled = false; btn.textContent = 'Show older entries ↓'; }
+    return;
+  }
+  const { data: logData } = await db.from('sync_log').select('*')
+    .eq('user_id', userId).order('created_at', { ascending: false });
+  if (logData) {
+    const entries = logData.map(r => { try { return JSON.parse(r.message); } catch { return { message: r.message, channelName: '' }; } });
+    renderSyncLog(entries);
+  }
+  const footer = document.getElementById('sync-log-footer');
+  if (footer) footer.style.display = 'none';
+}
+
+function renderHistoryEntries(entries, bodyId, footerId, showFooter) {
+  const body   = document.getElementById(bodyId);
+  const footer = document.getElementById(footerId);
+  if (!entries?.length) {
+    body.innerHTML = '<div class="log-empty">No episodes scheduled yet.</div>';
+    if (footer) footer.style.display = 'none';
+    return;
+  }
+  body.innerHTML = '';
+  if (footer) footer.style.display = showFooter ? '' : 'none';
+  entries.forEach(entry => {
+    const dt      = entry.scheduledFor ? new Date(entry.scheduledFor) : null;
+    const month   = dt ? dt.toLocaleString('en-GB', { month: 'short' }).toUpperCase() : '';
+    const day     = dt ? dt.getDate() : '';
+    const dow     = dt ? dt.toLocaleString('en-GB', { weekday: 'short' }) : '';
+    const timeStr = dt ? dt.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true }) : '';
+    const title   = entry.title || entry.message || 'Episode';
+    const channel = entry.channelName || '';
+    const dur     = entry.durationMins ? `${entry.durationMins} min` : '';
+    const item    = document.createElement('div');
+    item.className = 'log-item';
+    item.innerHTML = `
+      <div class="log-date-badge">
+        <div class="log-date-month">${month || '—'}</div>
+        <div class="log-date-day">${day || '?'}</div>
+        <div class="log-date-dow">${dow}</div>
+      </div>
+      <div class="log-ep-info">
+        <div class="log-ep-title">${title}</div>
+        <div class="log-ep-meta">
+          ${channel ? `<span class="log-ep-tag">${channel}</span>` : ''}
+          ${dur ? `<span>🎧 ${dur}</span>` : ''}
+        </div>
+      </div>
+      <div class="log-right">
+        ${timeStr ? `<div class="log-time">${timeStr}</div>` : ''}
+        <div class="log-booked-badge">✓ Booked</div>
+      </div>`;
+    body.appendChild(item);
+  });
+}
+
+async function loadHistoryTab() {
+  const body = document.getElementById('history-log-body');
+  if (!body) return;
+  const userId = appState.user?.id;
+  if (!userId || userId === 'demo') {
+    body.innerHTML = '<div class="log-empty">Sign in to see your sync history.</div>';
+    return;
+  }
+  body.innerHTML = '<div class="log-empty">Loading…</div>';
+  const { data: logData } = await db.from('sync_log').select('*')
+    .eq('user_id', userId).order('created_at', { ascending: false }).limit(20);
+  const entries = (logData || []).map(r => { try { return JSON.parse(r.message); } catch { return { message: r.message, channelName: '' }; } });
+  renderHistoryEntries(entries, 'history-log-body', 'history-log-footer', entries.length >= 20);
+}
+
+async function loadMoreHistory() {
+  const btn = document.getElementById('history-load-more-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
+  const userId = appState.user?.id;
+  if (!userId || userId === 'demo') return;
+  const { data: logData } = await db.from('sync_log').select('*')
+    .eq('user_id', userId).order('created_at', { ascending: false });
+  const entries = (logData || []).map(r => { try { return JSON.parse(r.message); } catch { return { message: r.message, channelName: '' }; } });
+  renderHistoryEntries(entries, 'history-log-body', 'history-log-footer', false);
+}
+
+// ================================================================
+// START SYNC
+// ================================================================
+async function confirmStartSync() {
+  const activeChannels = appState.channels.filter(c => c.on);
+  if (!activeChannels.length) { showToast('info', 'Turn on at least one podcast channel first.'); switchTab('podcasts'); return; }
+
+  // Abort any stale previous run, then start fresh
+  appState.syncAborted = false;
+
+  // Immediately update button to show it was clicked
+  const syncBtn = document.getElementById('start-sync-btn');
+  if (syncBtn) { syncBtn.disabled = true; syncBtn.innerHTML = '⏳ Starting sync…'; }
+
+  updateSchedulePreview();
+  const start = new Date();
+  const end   = new Date(); end.setDate(end.getDate() + appState.syncDurationWeeks * 7);
+  appState.syncStatus = 'active'; appState.syncStartDate = start; appState.syncEndDate = end;
+  updateSyncUI(); hideSetupProgress(); switchTab('status');
+  await runActualSync();
+}
+
+function updateSyncUI() {
+  const isActive = appState.syncStatus !== 'inactive';
+  document.getElementById('status-inactive').style.display = isActive ? 'none' : '';
+  document.getElementById('status-active').style.display   = isActive ? '' : 'none';
+
+  // Always update the schedule tab button — must happen before any early return
+  const syncBtn = document.getElementById('start-sync-btn');
+  if (syncBtn) {
+    syncBtn.disabled = false;
+    syncBtn.innerHTML = isActive ? '✓ Sync active — save changes' : '✓ Save &amp; Start Sync';
+    syncBtn.classList.toggle('btn-outline', isActive);
+    syncBtn.classList.toggle('btn-mint', !isActive);
+  }
+
+  if (!isActive) {
+    document.getElementById('header-sync-pill').className = 'sync-pill';
+    document.getElementById('header-sync-label').textContent = 'No sync active';
+    return;
+  }
+  const pill = document.getElementById('header-sync-pill');
+  pill.className = 'sync-pill ' + appState.syncStatus;
+  document.getElementById('header-sync-label').textContent = appState.syncStatus === 'paused' ? 'Sync paused' : 'Sync active';
+  const badge = document.getElementById('status-badge');
+  badge.className = 'status-badge ' + appState.syncStatus;
+  document.getElementById('status-badge-text').textContent = appState.syncStatus === 'paused' ? 'Sync Paused' : 'Sync Active';
+  document.getElementById('status-headline').textContent   = appState.syncStatus === 'paused' ? 'Sync paused — resume any time' : 'Episodes being added to your calendar';
+  const endStr = appState.syncEndDate ? appState.syncEndDate.toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' }) : '—';
+  document.getElementById('sync-end-date').textContent  = endStr;
+  document.getElementById('stat-weeks').textContent     = appState.syncDurationWeeks;
+  document.getElementById('stat-scheduled').textContent = appState.episodesScheduled;
+  document.getElementById('stat-channels').textContent  = appState.channels.filter(c=>c.on).length;
+  const total    = appState.syncDurationWeeks * 7;
+  const elapsed  = appState.syncStartDate ? Math.min(total, Math.max(0, (Date.now() - appState.syncStartDate.getTime()) / 86400000)) : 0;
+  const pct      = Math.round((elapsed / total) * 100);
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('prog-label-l').textContent  = `Week ${Math.floor(elapsed / 7) + 1} of ${appState.syncDurationWeeks}`;
+  document.getElementById('prog-label-r').textContent  = pct + '%';
+  const btn = document.getElementById('pause-resume-btn');
+  if (btn) btn.innerHTML = appState.syncStatus === 'paused' ? '▶ Resume sync' : '⏸ Pause sync';
+}
+
+// ================================================================
+// PAUSE / RESUME / CANCEL / EXTEND
+// ================================================================
+async function togglePause() {
+  appState.syncStatus = appState.syncStatus === 'paused' ? 'active' : 'paused';
+  updateSyncUI();
+  showToast('info', appState.syncStatus === 'paused' ? "Sync paused. Your calendar won't be touched until you resume." : 'Sync resumed.');
+  if (appState.user?.id && appState.user.id !== 'demo') {
+    await db.from('user_syncs').update({ status: appState.syncStatus }).eq('user_id', appState.user.id);
+  }
+}
+
+async function confirmCancel() {
+  if (!confirm("Cancel the sync? This will stop scheduling new episodes. Episodes already in your calendar won't be removed.")) return;
+  appState.syncStatus = 'inactive'; appState.episodesScheduled = 0; appState.syncLog = [];
+  updateSyncUI(); showSetupProgress();
+  showToast('info', 'Sync cancelled. Your existing calendar events are untouched.');
+  if (appState.user?.id && appState.user.id !== 'demo') {
+    await db.from('user_syncs').update({ status: 'cancelled' }).eq('user_id', appState.user.id);
+  }
+}
+
+async function confirmResetSyncData() {
+  if (!confirm("Clear all sync history and reset to inactive? This won't touch your Google Calendar — just clears the data in this app.")) return;
+
+  // Abort any in-progress sync immediately
+  appState.syncAborted = true;
+  hideSyncOverlay();
+
+  if (appState.user?.id && appState.user.id !== 'demo') {
+    await db.from('sync_log').delete().eq('user_id', appState.user.id);
+    await db.from('user_syncs').delete().eq('user_id', appState.user.id);
+  }
+
+  // Reset all state
+  appState.syncStatus = 'inactive';
+  appState.episodesScheduled = 0;
+  appState.syncLog = [];
+  appState.syncStartDate = null;
+  appState.syncEndDate = null;
+
+  // Return user to a clean starting point
+  updateSyncUI();
+  renderSyncLog([]);
+  showSetupProgress();
+  switchTab('podcasts');
+  showToast('success', 'Sync data cleared — choose your podcasts to start again.');
+}
+
+function openExtendModal() { openModal('extend-modal'); }
+
+async function extendSync() {
+  const extra = parseInt(document.querySelector('input[name="extend-weeks"]:checked').value);
+  appState.syncDurationWeeks += extra;
+  if (appState.syncEndDate) appState.syncEndDate.setDate(appState.syncEndDate.getDate() + extra * 7);
+  closeModal('extend-modal'); updateSyncUI();
+  showToast('success', `Sync extended by ${extra} weeks.`);
+  if (appState.user?.id && appState.user.id !== 'demo') {
+    await db.from('user_syncs').update({ duration_weeks: appState.syncDurationWeeks, sync_end_date: appState.syncEndDate }).eq('user_id', appState.user.id);
+  }
+}
+
+// ================================================================
+// NAVIGATION
+// ================================================================
+function switchTab(tab) {
+  appState.currentTab = tab;
+  ['podcasts','schedule','status','history'].forEach(t => {
+    document.getElementById('tab-btn-' + t)?.classList.toggle('active', t === tab);
+    document.getElementById('panel-' + t)?.classList.toggle('active', t === tab);
+  });
+  const stepMap = { podcasts:1, schedule:2, status:3 };
+  [1,2,3].forEach(n => {
+    const el = document.getElementById('step-' + n);
+    if (el) el.className = 'setup-step' + (n === stepMap[tab] ? ' current' : n < stepMap[tab] ? ' done' : '');
+  });
+  const hints = { podcasts: 'Toggle on the podcasts you want ↓', schedule: 'Set your preferred time window →', status: '', history: '' };
+  const hintEl = document.getElementById('setup-hint-text');
+  if (hintEl) hintEl.textContent = hints[tab] ?? '';
+  if (tab === 'history') loadHistoryTab();
+}
+
+function hideSetupProgress() { const el = document.getElementById('setup-progress'); if (el) el.style.display = 'none'; }
+function showSetupProgress() { const el = document.getElementById('setup-progress'); if (el) el.style.display = ''; }
+
+// ================================================================
+// USER MENU
+// ================================================================
+function toggleUserMenu() { document.getElementById('user-chip').classList.toggle('open'); }
+function closeUserMenu()  { document.getElementById('user-chip').classList.remove('open'); }
+document.addEventListener('click', e => { if (!document.getElementById('user-chip')?.contains(e.target)) closeUserMenu(); });
+
+// ================================================================
+// MODAL HELPERS
+// ================================================================
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.addEventListener('click', e => {
+  ['add-channel-modal','extend-modal'].forEach(id => { const el = document.getElementById(id); if (el && e.target === el) closeModal(id); });
+});
+function openAddChannelModal() { openModal('add-channel-modal'); }
+
+async function addCustomChannel() {
+  const handle = document.getElementById('custom-handle').value.trim();
+  if (!handle) { showToast('info', 'Please enter a YouTube handle or URL.'); return; }
+  const clean = handle.replace(/^https?:\/\/(www\.)?youtube\.com\/(c\/|channel\/|@)?/, '').replace(/^@/, '');
+  let channelInfo = null;
+  try {
+    const res  = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&forHandle=${clean}&key=${YOUTUBE_KEY}`);
+    const data = await res.json();
+    if (data.items?.length) {
+      const item = data.items[0];
+      channelInfo = {
+        name: item.snippet.title,
+        desc: (item.snippet.description || '').slice(0,120) + '…',
+        subs: (() => { const n = parseInt(item.statistics?.subscriberCount||0); return n>=1000000 ? (n/1000000).toFixed(1).replace(/\.0$/,'')+'M subscribers' : n>=1000 ? Math.round(n/1000)+'K subscribers' : n ? n+' subscribers' : '—'; })(),
+      };
+    }
+  } catch (e) {}
+  const newCh = {
+    id: 'custom-' + clean.toLowerCase(),
+    name: channelInfo?.name || '@' + clean,
+    handle: '@' + clean, ytHandle: clean,
+    host: 'Custom channel',
+    desc: channelInfo?.desc || 'Your custom channel.',
+    subs: channelInfo?.subs || '—',
+    color: '#818CF8', initials: clean[0].toUpperCase(), on: true,
+  };
+  appState.channels.push(newCh);
+
+  // Persist custom channel metadata locally so it survives page reload
+  try {
+    const saved = JSON.parse(localStorage.getItem('cf-custom-channels') || '[]');
+    if (!saved.find(c => c.id === newCh.id)) saved.push(newCh);
+    localStorage.setItem('cf-custom-channels', JSON.stringify(saved));
+  } catch (e) {}
+
+  renderChannels(); updateBadge(); closeModal('add-channel-modal');
+  document.getElementById('custom-handle').value = '';
+  showToast('success', `Added ${newCh.name}.`);
+  if (appState.user?.id && appState.user.id !== 'demo') {
+    await db.from('user_channels').upsert({ user_id: appState.user.id, channel_id: newCh.id, enabled: true });
+  }
+}
+
+// ================================================================
+// TOAST
+// ================================================================
+let toastTimer = null;
+function showToast(type, msg) {
+  const t = document.getElementById('toast');
+  t.className = 'toast ' + type; t.textContent = msg;
+  clearTimeout(toastTimer); t.classList.add('show');
+  toastTimer = setTimeout(() => t.classList.remove('show'), 4500);
+}
+
+// ================================================================
+// DEMO SYNC LOG (preview / demo mode only)
+// ================================================================
+function addDemoSyncLog() {
+  const tomorrow = d => { const x = new Date(); x.setDate(x.getDate()+d); x.setHours(9,0,0,0); return x; };
+  const demos = [
+    { title: "Lenny's Podcast: 'How Notion thinks about product'", channelName: "Lenny's Podcast", scheduledFor: tomorrow(1), durationMins: 62 },
+    { title: "Aakash Gupta: 'The PM growth framework'",            channelName: 'Aakash Gupta',    scheduledFor: tomorrow(2), durationMins: 45 },
+    { title: "Lenny's Podcast: 'Building with AI — tips from Figma'", channelName: "Lenny's Podcast", scheduledFor: tomorrow(3), durationMins: 78 },
+  ];
+  renderSyncLog(demos);
+  appState.episodesScheduled = demos.length;
+  const el = document.getElementById('stat-scheduled'); if (el) el.textContent = demos.length;
+}
+
+// ================================================================
+// KEYBOARD
+// ================================================================
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeModal('add-channel-modal'); closeModal('extend-modal'); closeUserMenu(); }
+});
+
+// Sign-out button — dedicated listener avoids parent chip onclick interference
+document.getElementById('sign-out-btn').addEventListener('click', function(e) {
+  e.stopPropagation();
+  handleSignOut();
+});
+
+// ================================================================
+// SYNC PROGRESS OVERLAY
+// ================================================================
+function showSyncOverlay() {
+  const el = document.getElementById('sync-progress-overlay');
+  el.classList.add('visible');
+  for (let i = 1; i <= 4; i++) {
+    const row = document.getElementById('sp-step-' + i);
+    if (row) row.classList.remove('active', 'done');
+  }
+}
+
+function hideSyncOverlay() {
+  document.getElementById('sync-progress-overlay').classList.remove('visible');
+}
+
+function setSyncStep(n, detail) {
+  for (let i = 1; i <= 4; i++) {
+    const row = document.getElementById('sp-step-' + i);
+    if (!row) continue;
+    row.classList.remove('active', 'done');
+    if (i < n) row.classList.add('done');
+    else if (i === n) row.classList.add('active');
+  }
+  if (detail) {
+    const el = document.getElementById('sp-detail-' + n);
+    if (el) el.textContent = detail;
+  }
+}
+
+</script>
+
+<!-- SYNC PROGRESS OVERLAY -->
+<div id="sync-progress-overlay">
+  <div class="sync-progress-card">
+    <div class="sync-progress-title">Syncing your podcasts</div>
+    <div class="sync-progress-sub">This takes a few seconds — please don't close this tab</div>
+    <div class="sync-steps">
+      <div class="sync-step-row" id="sp-step-1">
+        <div class="sync-step-icon">1</div>
+        <div class="sync-step-text">
+          <div class="sync-step-label">Fetching episodes from YouTube</div>
+          <div class="sync-step-detail" id="sp-detail-1">Looking up latest episodes from your selected channels…</div>
+        </div>
+      </div>
+      <div class="sync-step-row" id="sp-step-2">
+        <div class="sync-step-icon">2</div>
+        <div class="sync-step-text">
+          <div class="sync-step-label">Checking your calendar</div>
+          <div class="sync-step-detail" id="sp-detail-2">Finding free slots around your existing meetings…</div>
+        </div>
+      </div>
+      <div class="sync-step-row" id="sp-step-3">
+        <div class="sync-step-icon">3</div>
+        <div class="sync-step-text">
+          <div class="sync-step-label">Booking episodes into your calendar</div>
+          <div class="sync-step-detail" id="sp-detail-3">Creating calendar events…</div>
+        </div>
+      </div>
+      <div class="sync-step-row" id="sp-step-4">
+        <div class="sync-step-icon">✓</div>
+        <div class="sync-step-text">
+          <div class="sync-step-label">All done!</div>
+          <div class="sync-step-detail" id="sp-detail-4">Check the Status tab to see what's been booked.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
